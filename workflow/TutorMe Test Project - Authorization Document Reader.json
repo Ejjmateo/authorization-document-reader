@@ -1,0 +1,2279 @@
+{
+  "name": "TutorMe Test Project - Authorization Document Reader",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1lFmT8Pru2VyBvaU3OCIevwWaNNo7mHu-",
+          "mode": "list",
+          "cachedResultName": "TutorMe Auth Letters",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1lFmT8Pru2VyBvaU3OCIevwWaNNo7mHu-"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -560,
+        -192
+      ],
+      "id": "8a846d96-d76e-4f09-83a2-36af0e52d659",
+      "name": "Auth Letter detector",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "zyQfHY5j06m2vCDQ",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -336,
+        -192
+      ],
+      "id": "458a7fd5-18e1-40b2-adff-4983bd92f08c",
+      "name": "Download file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "zyQfHY5j06m2vCDQ",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a6a5600a-ea32-4ec7-91a0-09d4e9d8c614",
+              "leftValue": "={{ $json.has_content }}",
+              "rightValue": 50,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        336,
+        -192
+      ],
+      "id": "8a8ab859-eb8c-45be-a865-1cf40ff62cee",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "model": "anthropic/claude-haiku-4.5",
+        "options": {
+          "maxTokens": 1024,
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        960,
+        -240
+      ],
+      "id": "9910c65d-0299-4012-a1c9-f48fa55ae786",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "59ZjAiu6kJGo255B",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {
+          "keepSource": "binary"
+        }
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -112,
+        -192
+      ],
+      "id": "bbf81c10-7b32-4937-8494-69c5823234f5",
+      "name": "Extract Text from PDF"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawText =  $input.first().json.text || '';\n\n// Remove all whitespace and newlines\nconst cleanedText = rawText.replace(/\\s/g, '').trim();\n\n// Check if there is real content\nconst hasContent = cleanedText.length > 50;\n\nreturn [{\n  json: {\n    ...$input.item.json,\n    text: rawText,\n    cleaned_text: cleanedText,\n    has_content: hasContent,\n    content_length: cleanedText.length\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        112,
+        -192
+      ],
+      "id": "7f52084a-17e3-4215-889b-d27811004388",
+      "name": "Trim the whitespace nad newlines"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"x-api-key\": \"YOUR_ANTHROPIC_API_KEY\",\n  \"anthropic-version\": \"2023-06-01\",\n  \"Content-Type\": \"application/json\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-haiku-4-5-20251001\",\n  \"max_tokens\": 1024,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"document\",\n          \"source\": {\n            \"type\": \"base64\",\n            \"media_type\": \"application/pdf\",\n            \"data\": \"{{ $json.pdf_base64 }}\"\n          }\n        },\n        {\n          \"type\": \"text\",\n          \"text\": \"This is an authorization document. Extract the following fields and return ONLY a valid JSON object with no explanation, no markdown, no extra text.\\n\\nFields:\\n{\\n  \\\"student_name\\\": \\\"full name of student or client\\\",\\n  \\\"student_id\\\": \\\"client ID or UCI number\\\",\\n  \\\"authorization_number\\\": \\\"authorization number\\\",\\n  \\\"district\\\": \\\"school district or agency name\\\",\\n  \\\"service_type\\\": \\\"type of service authorized\\\",\\n  \\\"authorized_hours_per_month\\\": \\\"number only\\\",\\n  \\\"start_date\\\": \\\"MM/DD/YY format\\\",\\n  \\\"end_date\\\": \\\"MM/DD/YY format\\\",\\n  \\\"case_manager_name\\\": \\\"caseworker full name\\\",\\n  \\\"subject_areas\\\": \\\"subject areas or service description\\\",\\n  \\\"gross_auth_amount\\\": \\\"total authorized dollar amount\\\",\\n  \\\"notes\\\": \\\"any additional notes\\\"\\n}\\n\\nReturn null for any missing field. Return only the JSON.\"\n        }\n      ]\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1072,
+        -48
+      ],
+      "id": "a0ca70a3-5665-4259-8bf1-f7ef5e3e1e54",
+      "name": "Anthropic Vision"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nif (!items.length) {\n  throw new Error('No input items received');\n}\n\nconst firstItem = items[0];\n\nif (!firstItem.binary?.data) {\n  throw new Error('No binary PDF found in property \"data\"');\n}\n\nconst buffer = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst base64String = buffer\n  .toString('base64')\n  .replace(/\\s+/g, '');\n\nlet fileName = 'unknown.pdf';\n\ntry {\n  fileName =\n    firstItem.binary.data.fileName ||\n    $('Google Drive Trigger').first().json.name ||\n    'unknown.pdf';\n} catch (e) {}\n\nreturn [\n  {\n    json: {\n      pdf_base64: base64String,\n      file_name: fileName\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        -48
+      ],
+      "id": "b6033c0a-2b25-4146-a2fe-30b817cb3115",
+      "name": "Prepare PDF for Vision"
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('Auth Letter detector').item.json.id }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        560,
+        -48
+      ],
+      "id": "31e776b8-5f7a-4b75-b484-fea41ad6ab87",
+      "name": "Redownload for Claude Vision",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "zyQfHY5j06m2vCDQ",
+          "name": "Google Drive account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a data extraction specialist for \nauthorization documents from school districts.\n\nExtract the following fields from this \nauthorization document and return ONLY a valid \nJSON object. No explanation, no markdown, \nno extra text — just the raw JSON.\n\nFields to extract:\n{\n  \"student_name\": \"full name of student or client\",\n  \"student_id\": \"client ID or UCI number\",\n  \"authorization_number\": \"authorization number\",\n  \"district\": \"school district or agency name\",\n  \"service_type\": \"type of service authorized\",\n  \"authorized_hours_per_month\": \"number only no text\",\n  \"start_date\": \"MM/DD/YY format\",\n  \"end_date\": \"MM/DD/YY format\",\n  \"case_manager_name\": \"caseworker or case manager full name\",\n  \"subject_areas\": \"subject areas or service description\",\n  \"gross_auth_amount\": \"total authorized dollar amount\",\n  \"notes\": \"any additional notes or comments\"\n  \"guardian_name\": \"name of the guardian or parent of the student\"\n}\n\nRules:\n- Return null for any field you cannot find\n- Never guess or make up values\n- Dates must be in MM/DD/YY format\n- authorized_hours_per_month must be a number only\n- Return only the JSON object nothing else\n\nAuthorization document:\n{{ $json.text }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1008,
+        -448
+      ],
+      "id": "8201c101-1abf-4849-8466-cf6e86b247a0",
+      "name": "Claude Parser"
+    },
+    {
+      "parameters": {
+        "jsCode": "let rawResponse = '';\nlet fileName = '';\n\n// Get file name safely\ntry {\n  fileName = $('Auth Letter detector').first().json.name || 'Unknown File';\n} catch (e) {\n  fileName = 'Unknown File';\n}\n\n// 1. Try Basic LLM Chain (text path)\ntry {\n  const textOutput = $('Claude Parser').first().json.text;\n  if (textOutput) rawResponse = textOutput;\n} catch (e) {}\n\n// 2. Try Anthropic Vision fallback\nif (!rawResponse) {\n  try {\n    rawResponse = $('Anthropic Vision').first().json.content[0].text || '';\n  } catch (e) {}\n}\n\n// 3. Handle no response\nif (!rawResponse) {\n  return [{\n    json: {\n      parse_error: true,\n      error_message: 'No response from extraction',\n      file_name: fileName,\n      student_name: null,\n      guardian_name: null,\n      student_id: null,\n      authorization_number: null,\n      district: null,\n      service_type: null,\n      authorized_hours_per_month: null,\n      start_date: null,\n      end_date: null,\n      case_manager_name: null,\n      subject_areas: null,\n      gross_auth_amount: null,\n      notes: null,\n      warnings: ['CRITICAL: No response — manual review required'],\n      has_warnings: true\n    }\n  }];\n}\n\n// 4. Clean response (VERY IMPORTANT)\nlet cleaned = rawResponse\n  .replace(/```json/g, '')\n  .replace(/```/g, '')\n  .trim();\n\n// 🔥 EXTRA FIX: remove leading \"=\" if present\nif (cleaned.startsWith('=')) {\n  cleaned = cleaned.slice(1);\n}\n\n// 5. Parse JSON safely\nlet extracted;\n\ntry {\n  extracted = JSON.parse(cleaned);\n} catch (e) {\n  return [{\n    json: {\n      parse_error: true,\n      error_message: 'Failed to parse response',\n      raw_response: rawResponse,\n      file_name: fileName,\n      student_name: null,\n      student_id: null,\n      authorization_number: null,\n      district: null,\n      service_type: null,\n      authorized_hours_per_month: null,\n      start_date: null,\n      end_date: null,\n      case_manager_name: null,\n      subject_areas: null,\n      gross_auth_amount: null,\n      notes: null,\n      warnings: ['CRITICAL: Could not parse response — manual review required'],\n      has_warnings: true\n    }\n  }];\n}\n\n// 6. Validate required fields\nconst warnings = [];\nconst requiredFields = [\n  'student_name',\n  'student_id',\n  'authorization_number',\n  'start_date',\n  'end_date',\n  'authorized_hours_per_month',\n];\n\nrequiredFields.forEach(field => {\n  if (!extracted[field]) {\n    warnings.push(`Missing required field: ${field}`);\n  }\n});\n\n// 7. Format date\nconst today = new Date().toLocaleDateString('en-US', {\n  month: '2-digit',\n  day: '2-digit',\n  year: '2-digit'\n});\n\n// 8. Build auth comment\nconst authComment = [\n  `${today}: ${extracted.authorization_number || 'NO AUTH#'}`,\n  extracted.service_type || '',\n  extracted.authorized_hours_per_month\n    ? `${extracted.authorized_hours_per_month} HRS/MO`\n    : '',\n  extracted.gross_auth_amount\n    ? `GROSS AUTH AMT: ${extracted.gross_auth_amount}`\n    : '',\n  extracted.notes || ''\n].filter(Boolean).join('. ');\n\n// 9. Build service date\nconst serviceDate = extracted.start_date && extracted.end_date\n  ? `${extracted.start_date} - ${extracted.end_date}`\n  : null;\n\n// 10. Format hours per month\nconst hoursPerMonth = extracted.authorized_hours_per_month && serviceDate\n  ? `${extracted.authorized_hours_per_month} hours/month (${serviceDate})`\n  : extracted.authorized_hours_per_month\n  ? `${extracted.authorized_hours_per_month} hours/month`\n  : null;\n\n// 11. Final output\nreturn [{\n  json: {\n    ...extracted,\n    auth_comment: authComment,\n    service_date: serviceDate,\n    hours_per_month_formatted: hoursPerMonth,\n    file_name: fileName,\n    warnings: warnings,\n    has_warnings: warnings.length > 0,\n    processed_at: today,\n    parse_error: false\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        -192
+      ],
+      "id": "71795583-a08d-41d7-a6d7-696c0dad4172",
+      "name": "Parse and Validate Result"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI",
+          "mode": "list",
+          "cachedResultName": "AI automation example sheet 1 ",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1288633143,
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI/edit#gid=1288633143"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1584,
+        -192
+      ],
+      "id": "7db1e2de-d7fc-4a3a-a3d7-9219fb18c2f4",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "PGWRyEWMKrO3QQW2",
+          "name": "Google Sheets account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const targetRaw = $('Parse and Validate Result').first().json.student_name;\n\nif (!targetRaw) {\n  throw new Error('student_name is missing from Parse and Validate node');\n}\n\nconst target = targetRaw.toLowerCase().trim();\nconst rows = $input.all();\n\nconst match = rows.find(item => {\n  const name = item.json.Student?.toLowerCase().trim();\n  return name === target;\n});\n\nif (match) {\n  return [{\n    json: {\n      ...match.json,\n      row_found: true\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    row_found: false\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1808,
+        -192
+      ],
+      "id": "d5410eee-24c8-4075-8c79-57cce99bce65",
+      "name": "Check if the student exists and gets that row",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const parsed = $('Parse and Validate Result').first().json;\nconst row = $input.first().json;\n\nconst existingComments = row['Authorization Comments'] || '';\nconst newAuthComment = parsed.auth_comment || '';\nconst combinedComments = existingComments\n  ? `${existingComments}\\n${newAuthComment}`\n  : newAuthComment;\n\nconst auth1 = row['Contract Service Date 1st Auth'];\nconst auth2 = row['2nd Authorization'];\nconst auth3 = row['3rd Authorization'];\nconst auth4 = row['4th Authorization'];\n\nlet authColumnToUpdate = null;\n\nif (!auth1) {\n  authColumnToUpdate = 'Contract Service Date 1st Auth';\n} else if (!auth2) {\n  authColumnToUpdate = '2nd Authorization';\n} else if (!auth3) {\n  authColumnToUpdate = '3rd Authorization';\n} else if (!auth4) {\n  authColumnToUpdate = '4th Authorization';\n}\n\nconst fileName = (parsed.file_name || '').toLowerCase();\nconst notes = (parsed.notes || '').toLowerCase();\nconst serviceType = (parsed.service_type || '').toLowerCase();\n\nconst looksLikeDocument = fileName.endsWith('.pdf');\nconst looksLikePos =\n  fileName.includes('pos') ||\n  notes.includes('pos') ||\n  serviceType.includes('authorization');\n\nconst authorizationStatus = (looksLikeDocument || looksLikePos)\n  ? 'Received'\n  : 'Approved';\n\n// Force text values for Sheets\nconst textComment = combinedComments ? `'${String(combinedComments)}` : '';\nconst textServiceDate = parsed.service_date ? `'${String(parsed.service_date)}` : '';\nconst textHours = parsed.hours_per_month_formatted ? `'${String(parsed.hours_per_month_formatted)}` : '';\nconst textStatus = authorizationStatus ? `'${String(authorizationStatus)}` : '';\nconst textAreas = parsed.subject_areas ? `'${String(parsed.subject_areas)}` : '';\nlet formattedScName = '';\n\nif (parsed.case_manager_name) {\n  const raw = parsed.case_manager_name.trim();\n\n  if (raw.includes(',')) {\n    const [last, first] = raw.split(',').map(s => s.trim());\n    formattedScName = `${first} ${last}`;\n  } else {\n    formattedScName = raw;\n  }\n}\n\nconst textScName = formattedScName ? `'${formattedScName}` : '';\nconst textEndDate = parsed.end_date ? `'${String(parsed.end_date)}` : '';\n\nconst updatePayload = {\n  row_number: row.row_number,\n  authorization_comments: textComment,\n  current_auth_expiration_date: textEndDate,\n  hours_per_month: textHours,\n  authorization_status: textStatus,\n  areas_of_support: textAreas,\n  sc_name: textScName,\n  auth_column_to_update: authColumnToUpdate,\n  auth_column_value: textServiceDate,\n  has_overflow_warning: !authColumnToUpdate && !!parsed.service_date\n};\n\nconst warnings = [...(parsed.warnings || [])];\nif (!authColumnToUpdate && parsed.service_date) {\n  warnings.push('All authorization date columns are filled; manual review required for additional authorization entry');\n}\n\nreturn [{\n  json: {\n    ...row,\n    ...parsed,\n    updatePayload,\n    warnings,\n    has_warnings: warnings.length > 0\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2256,
+        -288
+      ],
+      "id": "22a9f8d5-8f22-45a4-8478-fcff823e8d56",
+      "name": "Build Google Sheet Payload"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a8ce77cf-535a-4377-8b22-5c0b4cc43fa4",
+              "leftValue": "={{ $json.updatePayload.auth_column_to_update }}",
+              "rightValue": "null",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2480,
+        -288
+      ],
+      "id": "1b2c05ae-b58b-4ed9-90bd-d558c4eb53ac",
+      "name": "IF Auth Slot Available?"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI",
+          "mode": "list",
+          "cachedResultName": "AI automation example sheet 1 ",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1288633143,
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI/edit#gid=1288633143"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $json.updatePayload.row_number }}",
+            "Authorization Comments": "=\"{{ $json.updatePayload.authorization_comments }}\"",
+            "Contract Service Date 1st Auth": "=\"{{ $json.updatePayload.auth_column_to_update === 'Contract Service Date 1st Auth'   ? $json.updatePayload.auth_column_value   : $json[\"Contract Service Date 1st Auth\"] }}\"",
+            "2nd Authorization": "=\"{{ $json.updatePayload.auth_column_to_update === '2nd Authorization'   ? $json.updatePayload.auth_column_value   : $json[\"2nd Authorization\"] }}\"",
+            "3rd Authorization": "=\"{{ $json.updatePayload.auth_column_to_update === '3rd Authorization'   ? $json.updatePayload.auth_column_value   : $json[\"3rd Authorization\"] }}\"",
+            "4th Authorization": "=\"{{ $json.updatePayload.auth_column_to_update === '4th Authorization'   ? $json.updatePayload.auth_column_value   : $json[\"4th Authorization\"] }}\"",
+            "Current Auth Expiration Date Format: MM/DD/YY": "=\"{{ $json.updatePayload.current_auth_expiration_date }}\"",
+            "Hours Per Month": "={{ $json.updatePayload.hours_per_month }}",
+            "Authorization Status": "={{ $json.updatePayload.authorization_status }}",
+            "Areas of Support": "={{ $json.updatePayload.areas_of_support }}",
+            "SC\n(First Name Last Name)": "={{ $json.updatePayload.sc_name }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "UCI",
+              "displayName": "UCI",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Student",
+              "displayName": "Student",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Guardian Name",
+              "displayName": "Guardian Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CL Director",
+              "displayName": "CL Director",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Spanish",
+              "displayName": "Spanish",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assessment",
+              "displayName": "Assessment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Authorization Comments",
+              "displayName": "Authorization Comments",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Contract Service Date 1st Auth",
+              "displayName": "Contract Service Date 1st Auth",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "2nd Authorization",
+              "displayName": "2nd Authorization",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "3rd Authorization",
+              "displayName": "3rd Authorization",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "4th Authorization",
+              "displayName": "4th Authorization",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Current Auth Expiration Date Format: MM/DD/YY",
+              "displayName": "Current Auth Expiration Date Format: MM/DD/YY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Requested Authorization (Pending)",
+              "displayName": "Requested Authorization (Pending)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Hours Per Month",
+              "displayName": "Hours Per Month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Upcoming Renewal Status",
+              "displayName": "Upcoming Renewal Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Summer",
+              "displayName": "Summer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Authorization Status",
+              "displayName": "Authorization Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SC\n(First Name Last Name)",
+              "displayName": "SC\n(First Name Last Name)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Student status",
+              "displayName": "Student status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Pending Confirmation",
+              "displayName": "Pending Confirmation",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Hard to Contact",
+              "displayName": "Hard to Contact",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Requested Schedule",
+              "displayName": "Requested Schedule",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Areas of Support",
+              "displayName": "Areas of Support",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Parent Requested Mode of Services",
+              "displayName": "Parent Requested Mode of Services",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Virtual Tutor List",
+              "displayName": "Virtual Tutor List",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Current Virtual Tutor",
+              "displayName": "Current Virtual Tutor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "In Home Tutor List",
+              "displayName": "In Home Tutor List",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Current In Home Tutor",
+              "displayName": "Current In Home Tutor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Additional Notes",
+              "displayName": "Additional Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Parent Feedback",
+              "displayName": "Parent Feedback",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Parent Feedback (orginal AG)",
+              "displayName": "Parent Feedback (orginal AG)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Start Date Track",
+              "displayName": "Start Date Track",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation: CONCAT Service Dates",
+              "displayName": "Validation: CONCAT Service Dates",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation: Contract Service Date",
+              "displayName": "Validation: Contract Service Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation: Current Auth Expiration Date",
+              "displayName": "Validation: Current Auth Expiration Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation:\nService Date = Expiration Date",
+              "displayName": "Validation:\nService Date = Expiration Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Standardized SC Names",
+              "displayName": "Standardized SC Names",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2704,
+        -384
+      ],
+      "id": "103a218f-e05b-4f93-a391-a5b9ed21baf5",
+      "name": "With Auth Slot",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "8AWJIADj5kK5KLt9",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI",
+          "mode": "list",
+          "cachedResultName": "AI automation example sheet 1 ",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1288633143,
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI/edit#gid=1288633143"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $('Build Google Sheet Payload').item.json.row_number }}",
+            "Authorization Comments": "={{ $json.updatePayload.authorization_comments }}",
+            "Current Auth Expiration Date Format: MM/DD/YY": "={{ $json.updatePayload.current_auth_expiration_date }}",
+            "Hours Per Month": "={{ $json.updatePayload.hours_per_month }}",
+            "Authorization Status": "={{ $json.updatePayload.authorization_status }}",
+            "Areas of Support": "={{ $json.updatePayload.areas_of_support }}",
+            "Standardized SC Names": "=",
+            "SC\n(First Name Last Name)": "={{ $json.updatePayload.sc_name }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "UCI",
+              "displayName": "UCI",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Student",
+              "displayName": "Student",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Guardian Name",
+              "displayName": "Guardian Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CL Director",
+              "displayName": "CL Director",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Spanish",
+              "displayName": "Spanish",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assessment",
+              "displayName": "Assessment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Authorization Comments",
+              "displayName": "Authorization Comments",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Contract Service Date 1st Auth",
+              "displayName": "Contract Service Date 1st Auth",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "2nd Authorization",
+              "displayName": "2nd Authorization",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "3rd Authorization",
+              "displayName": "3rd Authorization",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "4th Authorization",
+              "displayName": "4th Authorization",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Current Auth Expiration Date Format: MM/DD/YY",
+              "displayName": "Current Auth Expiration Date Format: MM/DD/YY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Requested Authorization (Pending)",
+              "displayName": "Requested Authorization (Pending)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Hours Per Month",
+              "displayName": "Hours Per Month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Upcoming Renewal Status",
+              "displayName": "Upcoming Renewal Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Summer",
+              "displayName": "Summer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Authorization Status",
+              "displayName": "Authorization Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SC\n(First Name Last Name)",
+              "displayName": "SC\n(First Name Last Name)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Student status",
+              "displayName": "Student status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Pending Confirmation",
+              "displayName": "Pending Confirmation",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Hard to Contact",
+              "displayName": "Hard to Contact",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Requested Schedule",
+              "displayName": "Requested Schedule",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Areas of Support",
+              "displayName": "Areas of Support",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Parent Requested Mode of Services",
+              "displayName": "Parent Requested Mode of Services",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Virtual Tutor List",
+              "displayName": "Virtual Tutor List",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Current Virtual Tutor",
+              "displayName": "Current Virtual Tutor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "In Home Tutor List",
+              "displayName": "In Home Tutor List",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Current In Home Tutor",
+              "displayName": "Current In Home Tutor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Additional Notes",
+              "displayName": "Additional Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Parent Feedback",
+              "displayName": "Parent Feedback",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Parent Feedback (orginal AG)",
+              "displayName": "Parent Feedback (orginal AG)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Start Date Track",
+              "displayName": "Start Date Track",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation: CONCAT Service Dates",
+              "displayName": "Validation: CONCAT Service Dates",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation: Contract Service Date",
+              "displayName": "Validation: Contract Service Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation: Current Auth Expiration Date",
+              "displayName": "Validation: Current Auth Expiration Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation:\nService Date = Expiration Date",
+              "displayName": "Validation:\nService Date = Expiration Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Standardized SC Names",
+              "displayName": "Standardized SC Names",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2704,
+        -192
+      ],
+      "id": "47d6b627-0627-49e8-b1d7-8c35d9d603ac",
+      "name": "With No Auth Slot",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "8AWJIADj5kK5KLt9",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "4dc85f55-0923-43c0-b1d7-921c35a05a2d",
+              "leftValue": "={{ $('Build Google Sheet Payload').item.json.has_warnings }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2928,
+        -384
+      ],
+      "id": "2292c9af-e5de-4a1e-a162-f1b2adbe9540",
+      "name": "Check for Warnings"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "4dc85f55-0923-43c0-b1d7-921c35a05a2d",
+              "leftValue": "={{ $('Build Google Sheet Payload').item.json.has_warnings }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2928,
+        -192
+      ],
+      "id": "aa000d96-9507-4b9e-9eaf-9da3dcc5e941",
+      "name": "Check for warnings"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "4d281590-88a5-4bba-9136-fef8fbfe300a",
+              "leftValue": "={{ $json.row_found }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2032,
+        -192
+      ],
+      "id": "c0e61ccd-e61b-42b1-9e0b-7bd132329082",
+      "name": "Check if Old or New Student"
+    },
+    {
+      "parameters": {
+        "jsCode": "const parsed = $('Parse and Validate Result').first().json;\n\nconst fileName = (parsed.file_name || '').toLowerCase();\nconst notes = (parsed.notes || '').toLowerCase();\nconst serviceType = (parsed.service_type || '').toLowerCase();\n\nconst looksLikeDocument = fileName.endsWith('.pdf');\nconst looksLikePos =\n  fileName.includes('pos') ||\n  notes.includes('pos') ||\n  serviceType.includes('authorization');\n\nconst authorizationStatus = (looksLikeDocument || looksLikePos)\n  ? 'Received'\n  : 'Approved';\n\n// Format SC name: LAST, FIRST -> First Last\nlet formattedScName = '';\nif (parsed.case_manager_name) {\n  const raw = parsed.case_manager_name.trim();\n  if (raw.includes(',')) {\n    const [last, first] = raw.split(',').map(s => s.trim());\n    formattedScName = `${first} ${last}`;\n  } else {\n    formattedScName = raw;\n  }\n}\n\n// Force text values for Google Sheets\nconst textStudent = parsed.student_name ? `'${String(parsed.student_name)}` : '';\nconst textComments = parsed.auth_comment ? `'${String(parsed.auth_comment)}` : '';\nconst textAuth1 = parsed.service_date ? `'${String(parsed.service_date)}` : '';\nconst textEndDate = parsed.end_date ? `'${String(parsed.end_date)}` : '';\nconst textHours = parsed.hours_per_month_formatted ? `'${String(parsed.hours_per_month_formatted)}` : '';\nconst textStatus = authorizationStatus ? `'${String(authorizationStatus)}` : '';\nconst textAreas = parsed.subject_areas ? `'${String(parsed.subject_areas)}` : '';\nconst textScName = formattedScName ? `'${String(formattedScName)}` : '';\n\nreturn [{\n  json: {\n    ...parsed,\n    newRowPayload: {\n      uci: parsed.student_id || '',\n      student: textStudent,\n      authorization_comments: textComments,\n      auth_1: textAuth1,\n      auth_2: '',\n      auth_3: '',\n      auth_4: '',\n      current_auth_expiration_date: textEndDate,\n      hours_per_month: textHours,\n      authorization_status: textStatus,\n      areas_of_support: textAreas,\n      sc_name: textScName\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2288,
+        64
+      ],
+      "id": "c4ed5d5d-2faa-4133-a0f2-1db7a5a3d50e",
+      "name": "Payload for New Student"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI",
+          "mode": "list",
+          "cachedResultName": "AI automation example sheet 1 ",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1288633143,
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI/edit#gid=1288633143"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Student": "={{ $json.student_name }}",
+            "Guardian Name": "={{ $json.guardian_name }}",
+            "UCI": "={{ $json.student_id }}",
+            "Authorization Comments": "={{ $json.auth_comment }}",
+            "Contract Service Date 1st Auth": "={{ $json.newRowPayload.auth_1 }}",
+            "2nd Authorization": "={{ $json.newRowPayload.auth_2 }}",
+            "3rd Authorization": "={{ $json.newRowPayload.auth_3 }}",
+            "4th Authorization": "={{ $json.newRowPayload.auth_4 }}",
+            "Current Auth Expiration Date Format: MM/DD/YY": "={{ $json.newRowPayload.current_auth_expiration_date }}",
+            "Hours Per Month": "={{ $json.newRowPayload.hours_per_month }}",
+            "Authorization Status": "={{ $json.newRowPayload.authorization_status }}",
+            "SC\n(First Name Last Name)": "={{ $json.newRowPayload.sc_name }}",
+            "Areas of Support": "={{ $json.newRowPayload.areas_of_support }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "UCI",
+              "displayName": "UCI",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Student",
+              "displayName": "Student",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Guardian Name",
+              "displayName": "Guardian Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CL Director",
+              "displayName": "CL Director",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Spanish",
+              "displayName": "Spanish",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assessment",
+              "displayName": "Assessment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Authorization Comments",
+              "displayName": "Authorization Comments",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Contract Service Date 1st Auth",
+              "displayName": "Contract Service Date 1st Auth",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "2nd Authorization",
+              "displayName": "2nd Authorization",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "3rd Authorization",
+              "displayName": "3rd Authorization",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "4th Authorization",
+              "displayName": "4th Authorization",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Current Auth Expiration Date Format: MM/DD/YY",
+              "displayName": "Current Auth Expiration Date Format: MM/DD/YY",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Requested Authorization (Pending)",
+              "displayName": "Requested Authorization (Pending)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Hours Per Month",
+              "displayName": "Hours Per Month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Upcoming Renewal Status",
+              "displayName": "Upcoming Renewal Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Summer",
+              "displayName": "Summer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Authorization Status",
+              "displayName": "Authorization Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SC\n(First Name Last Name)",
+              "displayName": "SC\n(First Name Last Name)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Student status",
+              "displayName": "Student status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Pending Confirmation",
+              "displayName": "Pending Confirmation",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Hard to Contact",
+              "displayName": "Hard to Contact",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Requested Schedule",
+              "displayName": "Requested Schedule",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Areas of Support",
+              "displayName": "Areas of Support",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Parent Requested Mode of Services",
+              "displayName": "Parent Requested Mode of Services",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Virtual Tutor List",
+              "displayName": "Virtual Tutor List",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Current Virtual Tutor",
+              "displayName": "Current Virtual Tutor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "In Home Tutor List",
+              "displayName": "In Home Tutor List",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Current In Home Tutor",
+              "displayName": "Current In Home Tutor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Additional Notes",
+              "displayName": "Additional Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Parent Feedback",
+              "displayName": "Parent Feedback",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Parent Feedback (orginal AG)",
+              "displayName": "Parent Feedback (orginal AG)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Start Date Track",
+              "displayName": "Start Date Track",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation: CONCAT Service Dates",
+              "displayName": "Validation: CONCAT Service Dates",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation: Contract Service Date",
+              "displayName": "Validation: Contract Service Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation: Current Auth Expiration Date",
+              "displayName": "Validation: Current Auth Expiration Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Validation:\nService Date = Expiration Date",
+              "displayName": "Validation:\nService Date = Expiration Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Standardized SC Names",
+              "displayName": "Standardized SC Names",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2512,
+        64
+      ],
+      "id": "9d88b6f0-12d1-43e4-be05-3e1ddc8b292f",
+      "name": "Add New Student",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "8AWJIADj5kK5KLt9",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "01c75941-9b79-4966-84f7-39badd062569",
+              "leftValue": "={{ $('Payload for New Student').item.json.has_warnings }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2736,
+        64
+      ],
+      "id": "c4f4e516-f7cf-4dcc-85de-525242e455f3",
+      "name": "Check for warnings1"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI",
+          "mode": "list",
+          "cachedResultName": "AI automation example sheet 1 ",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 920733529,
+          "mode": "list",
+          "cachedResultName": "Warnings",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI/edit#gid=920733529"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ new Date().toLocaleString('en-US') }}",
+            "Student Name": "={{ $('Add New Student').item.json.Student }}",
+            "Auth Number": "={{ $('Parse and Validate Result').item.json.authorization_number }}",
+            "File Name": "={{ $('Parse and Validate Result').item.json.file_name }}",
+            "Warnings": "={{ $('Payload for New Student').item.json.warnings[0] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Student Name",
+              "displayName": "Student Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Auth Number",
+              "displayName": "Auth Number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "File Name",
+              "displayName": "File Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Warnings",
+              "displayName": "Warnings",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2960,
+        64
+      ],
+      "id": "3ec9dc88-7395-49f2-91db-3b2f2c1782b4",
+      "name": "Log Warnings",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "8AWJIADj5kK5KLt9",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI",
+          "mode": "list",
+          "cachedResultName": "AI automation example sheet 1 ",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 920733529,
+          "mode": "list",
+          "cachedResultName": "Warnings",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI/edit#gid=920733529"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Auth Number": "={{ $('Parse and Validate Result').item.json.authorization_number }}",
+            "Student Name": "={{ $('Parse and Validate Result').item.json.student_name }}",
+            "Timestamp": "={{ new Date().toLocaleString('en-US') }}",
+            "File Name": "={{ $('Parse and Validate Result').item.json.file_name }}",
+            "Warnings": "={{ $('Build Google Sheet Payload').item.json.warnings[0] }}"
+          },
+          "matchingColumns": [
+            "Student Name"
+          ],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Student Name",
+              "displayName": "Student Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Auth Number",
+              "displayName": "Auth Number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "File Name",
+              "displayName": "File Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Warnings",
+              "displayName": "Warnings",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3152,
+        -192
+      ],
+      "id": "87244fe8-1d90-4587-9720-cfa8fbdbb92e",
+      "name": "Log Warnings1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "8AWJIADj5kK5KLt9",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI",
+          "mode": "list",
+          "cachedResultName": "AI automation example sheet 1 ",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 920733529,
+          "mode": "list",
+          "cachedResultName": "Warnings",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1YhiBxtzccuh0HXrhXRWzD2Bfiy7-k-csbcVohRvh4MI/edit#gid=920733529"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Auth Number": "={{ $('Parse and Validate Result').item.json.authorization_number }}",
+            "Student Name": "={{ $('Parse and Validate Result').item.json.student_name }}",
+            "Timestamp": "={{ new Date().toLocaleString('en-US') }}",
+            "File Name": "={{ $('Parse and Validate Result').item.json.file_name }}",
+            "Warnings": "={{ $('Build Google Sheet Payload').item.json.warnings[0] }}"
+          },
+          "matchingColumns": [
+            "Student Name"
+          ],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Student Name",
+              "displayName": "Student Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Auth Number",
+              "displayName": "Auth Number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "File Name",
+              "displayName": "File Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Warnings",
+              "displayName": "Warnings",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3152,
+        -384
+      ],
+      "id": "cda3a882-9ff3-4050-98d9-d67105cac029",
+      "name": "Log Warnings2",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "8AWJIADj5kK5KLt9",
+          "name": "Google Sheets account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Auth Letter detector": {
+      "main": [
+        [
+          {
+            "node": "Download file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download file": {
+      "main": [
+        [
+          {
+            "node": "Extract Text from PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Claude Parser",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Redownload for Claude Vision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Claude Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text from PDF": {
+      "main": [
+        [
+          {
+            "node": "Trim the whitespace nad newlines",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trim the whitespace nad newlines": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare PDF for Vision": {
+      "main": [
+        [
+          {
+            "node": "Anthropic Vision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redownload for Claude Vision": {
+      "main": [
+        [
+          {
+            "node": "Prepare PDF for Vision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Parser": {
+      "main": [
+        [
+          {
+            "node": "Parse and Validate Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Vision": {
+      "main": [
+        [
+          {
+            "node": "Parse and Validate Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse and Validate Result": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Check if the student exists and gets that row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if the student exists and gets that row": {
+      "main": [
+        [
+          {
+            "node": "Check if Old or New Student",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Google Sheet Payload": {
+      "main": [
+        [
+          {
+            "node": "IF Auth Slot Available?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Auth Slot Available?": {
+      "main": [
+        [
+          {
+            "node": "With Auth Slot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "With No Auth Slot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "With No Auth Slot": {
+      "main": [
+        [
+          {
+            "node": "Check for warnings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "With Auth Slot": {
+      "main": [
+        [
+          {
+            "node": "Check for Warnings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Warnings": {
+      "main": [
+        [
+          {
+            "node": "Log Warnings2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for warnings": {
+      "main": [
+        [
+          {
+            "node": "Log Warnings1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Old or New Student": {
+      "main": [
+        [
+          {
+            "node": "Build Google Sheet Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Payload for New Student",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Payload for New Student": {
+      "main": [
+        [
+          {
+            "node": "Add New Student",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add New Student": {
+      "main": [
+        [
+          {
+            "node": "Check for warnings1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for warnings1": {
+      "main": [
+        [
+          {
+            "node": "Log Warnings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "9b1d0a68-0066-4daa-9285-8f87f7a4cc1a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a992e1d3f5a5db45fc0d1a6b09a207dab31c2aeaa2c8b7725ffa8d181f2740c6"
+  },
+  "id": "Umq8mo5d2XMznW95",
+  "tags": []
+}
