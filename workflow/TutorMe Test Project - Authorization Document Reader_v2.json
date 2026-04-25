@@ -1,5 +1,5 @@
 {
-  "name": "TutorMe Test Project - Authorization Document Reader",
+  "name": "TutorMe Test Project - Authorization Document Reader v2",
   "nodes": [
     {
       "parameters": {
@@ -10,54 +10,23 @@
             }
           ]
         },
-        "triggerOn": "specificFolder",
-        "folderToWatch": {
-          "__rl": true,
-          "value": "1lFmT8Pru2VyBvaU3OCIevwWaNNo7mHu-",
-          "mode": "list",
-          "cachedResultName": "TutorMe Auth Letters",
-          "cachedResultUrl": "https://drive.google.com/drive/folders/1lFmT8Pru2VyBvaU3OCIevwWaNNo7mHu-"
-        },
-        "event": "fileCreated",
-        "options": {}
+        "filters": {
+          "includeSpamTrash": false,
+          "q": "has:attachment filename:pdf"
+        }
       },
-      "type": "n8n-nodes-base.googleDriveTrigger",
+      "type": "n8n-nodes-base.gmailTrigger",
       "typeVersion": 1,
       "position": [
-        -560,
-        -192
+        -1712,
+        224
       ],
-      "id": "8a846d96-d76e-4f09-83a2-36af0e52d659",
-      "name": "Auth Letter detector",
+      "id": "f74bc413-1e27-41af-ad83-a4d3d80d5320",
+      "name": "Gmail - New Auth Email",
       "credentials": {
-        "googleDriveOAuth2Api": {
-          "id": "zyQfHY5j06m2vCDQ",
-          "name": "Google Drive account 3"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "download",
-        "fileId": {
-          "__rl": true,
-          "value": "={{ $json.id }}",
-          "mode": "id"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.googleDrive",
-      "typeVersion": 3,
-      "position": [
-        -336,
-        -192
-      ],
-      "id": "458a7fd5-18e1-40b2-adff-4983bd92f08c",
-      "name": "Download file",
-      "credentials": {
-        "googleDriveOAuth2Api": {
-          "id": "zyQfHY5j06m2vCDQ",
-          "name": "Google Drive account 3"
+        "gmailOAuth2": {
+          "id": "XJ0ofhUUjUqCxhvt",
+          "name": "TutorMe"
         }
       }
     },
@@ -90,10 +59,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        336,
-        -192
+        -592,
+        224
       ],
-      "id": "8a8ab859-eb8c-45be-a865-1cf40ff62cee",
+      "id": "d2442395-9bb4-434e-9993-c644c9cb245a",
       "name": "If"
     },
     {
@@ -107,10 +76,10 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
       "typeVersion": 1,
       "position": [
-        960,
-        -240
+        384,
+        192
       ],
-      "id": "9910c65d-0299-4012-a1c9-f48fa55ae786",
+      "id": "1cc612d8-8f4f-4ba1-b53c-c1e503707cb7",
       "name": "OpenRouter Chat Model",
       "credentials": {
         "openRouterApi": {
@@ -129,10 +98,10 @@
       "type": "n8n-nodes-base.extractFromFile",
       "typeVersion": 1.1,
       "position": [
-        -112,
-        -192
+        -1040,
+        224
       ],
-      "id": "bbf81c10-7b32-4937-8494-69c5823234f5",
+      "id": "2d400e05-4818-4e16-aa4c-6bfcae95f903",
       "name": "Extract Text from PDF"
     },
     {
@@ -142,10 +111,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        112,
-        -192
+        -816,
+        224
       ],
-      "id": "7f52084a-17e3-4215-889b-d27811004388",
+      "id": "64b1faab-458e-461c-9206-c634abe1f1ee",
       "name": "Trim the whitespace nad newlines"
     },
     {
@@ -154,7 +123,7 @@
         "url": "https://api.anthropic.com/v1/messages",
         "sendHeaders": true,
         "specifyHeaders": "json",
-        "jsonHeaders": "{\n  \"x-api-key\": \"YOUR_ANTHROPIC_API_KEY\",\n  \"anthropic-version\": \"2023-06-01\",\n  \"Content-Type\": \"application/json\"\n}",
+        "jsonHeaders": "{\n  \"x-api-key\": \"YOUR_ANTHROPIC_API\",\n  \"anthropic-version\": \"2023-06-01\",\n  \"Content-Type\": \"application/json\"\n}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"model\": \"claude-haiku-4-5-20251001\",\n  \"max_tokens\": 1024,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"document\",\n          \"source\": {\n            \"type\": \"base64\",\n            \"media_type\": \"application/pdf\",\n            \"data\": \"{{ $json.pdf_base64 }}\"\n          }\n        },\n        {\n          \"type\": \"text\",\n          \"text\": \"This is an authorization document. Extract the following fields and return ONLY a valid JSON object with no explanation, no markdown, no extra text.\\n\\nFields:\\n{\\n  \\\"student_name\\\": \\\"full name of student or client\\\",\\n  \\\"student_id\\\": \\\"client ID or UCI number\\\",\\n  \\\"authorization_number\\\": \\\"authorization number\\\",\\n  \\\"district\\\": \\\"school district or agency name\\\",\\n  \\\"service_type\\\": \\\"type of service authorized\\\",\\n  \\\"authorized_hours_per_month\\\": \\\"number only\\\",\\n  \\\"start_date\\\": \\\"MM/DD/YY format\\\",\\n  \\\"end_date\\\": \\\"MM/DD/YY format\\\",\\n  \\\"case_manager_name\\\": \\\"caseworker full name\\\",\\n  \\\"subject_areas\\\": \\\"subject areas or service description\\\",\\n  \\\"gross_auth_amount\\\": \\\"total authorized dollar amount\\\",\\n  \\\"notes\\\": \\\"any additional notes\\\"\\n}\\n\\nReturn null for any missing field. Return only the JSON.\"\n        }\n      ]\n    }\n  ]\n}",
@@ -163,10 +132,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
       "position": [
-        1072,
-        -48
+        368,
+        368
       ],
-      "id": "a0ca70a3-5665-4259-8bf1-f7ef5e3e1e54",
+      "id": "2c4be34d-0c2a-414b-948b-f112b2cb31b5",
       "name": "Anthropic Vision"
     },
     {
@@ -176,38 +145,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        784,
-        -48
+        80,
+        368
       ],
-      "id": "b6033c0a-2b25-4146-a2fe-30b817cb3115",
+      "id": "720411ed-de20-481b-b7e9-8aa0064d5452",
       "name": "Prepare PDF for Vision"
-    },
-    {
-      "parameters": {
-        "operation": "download",
-        "fileId": {
-          "__rl": true,
-          "value": "={{ $('Auth Letter detector').item.json.id }}",
-          "mode": "id"
-        },
-        "options": {
-          "binaryPropertyName": "data"
-        }
-      },
-      "type": "n8n-nodes-base.googleDrive",
-      "typeVersion": 3,
-      "position": [
-        560,
-        -48
-      ],
-      "id": "31e776b8-5f7a-4b75-b484-fea41ad6ab87",
-      "name": "Redownload for Claude Vision",
-      "credentials": {
-        "googleDriveOAuth2Api": {
-          "id": "zyQfHY5j06m2vCDQ",
-          "name": "Google Drive account 3"
-        }
-      }
     },
     {
       "parameters": {
@@ -218,23 +160,23 @@
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.9,
       "position": [
-        1008,
-        -448
+        304,
+        -32
       ],
-      "id": "8201c101-1abf-4849-8466-cf6e86b247a0",
+      "id": "6a5a0b0d-6193-4f7e-b602-3a008435d543",
       "name": "Claude Parser"
     },
     {
       "parameters": {
-        "jsCode": "let rawResponse = '';\nlet fileName = '';\n\n// Get file name safely\ntry {\n  fileName = $('Auth Letter detector').first().json.name || 'Unknown File';\n} catch (e) {\n  fileName = 'Unknown File';\n}\n\n// 1. Try Basic LLM Chain (text path)\ntry {\n  const textOutput = $('Claude Parser').first().json.text;\n  if (textOutput) rawResponse = textOutput;\n} catch (e) {}\n\n// 2. Try Anthropic Vision fallback\nif (!rawResponse) {\n  try {\n    rawResponse = $('Anthropic Vision').first().json.content[0].text || '';\n  } catch (e) {}\n}\n\n// 3. Handle no response\nif (!rawResponse) {\n  return [{\n    json: {\n      parse_error: true,\n      error_message: 'No response from extraction',\n      file_name: fileName,\n      student_name: null,\n      guardian_name: null,\n      student_id: null,\n      authorization_number: null,\n      district: null,\n      service_type: null,\n      authorized_hours_per_month: null,\n      start_date: null,\n      end_date: null,\n      case_manager_name: null,\n      subject_areas: null,\n      gross_auth_amount: null,\n      notes: null,\n      warnings: ['CRITICAL: No response — manual review required'],\n      has_warnings: true\n    }\n  }];\n}\n\n// 4. Clean response (VERY IMPORTANT)\nlet cleaned = rawResponse\n  .replace(/```json/g, '')\n  .replace(/```/g, '')\n  .trim();\n\n// 🔥 EXTRA FIX: remove leading \"=\" if present\nif (cleaned.startsWith('=')) {\n  cleaned = cleaned.slice(1);\n}\n\n// 5. Parse JSON safely\nlet extracted;\n\ntry {\n  extracted = JSON.parse(cleaned);\n} catch (e) {\n  return [{\n    json: {\n      parse_error: true,\n      error_message: 'Failed to parse response',\n      raw_response: rawResponse,\n      file_name: fileName,\n      student_name: null,\n      student_id: null,\n      authorization_number: null,\n      district: null,\n      service_type: null,\n      authorized_hours_per_month: null,\n      start_date: null,\n      end_date: null,\n      case_manager_name: null,\n      subject_areas: null,\n      gross_auth_amount: null,\n      notes: null,\n      warnings: ['CRITICAL: Could not parse response — manual review required'],\n      has_warnings: true\n    }\n  }];\n}\n\n// 6. Validate required fields\nconst warnings = [];\nconst requiredFields = [\n  'student_name',\n  'student_id',\n  'authorization_number',\n  'start_date',\n  'end_date',\n  'authorized_hours_per_month',\n];\n\nrequiredFields.forEach(field => {\n  if (!extracted[field]) {\n    warnings.push(`Missing required field: ${field}`);\n  }\n});\n\n// 7. Format date\nconst today = new Date().toLocaleDateString('en-US', {\n  month: '2-digit',\n  day: '2-digit',\n  year: '2-digit'\n});\n\n// 8. Build auth comment\nconst authComment = [\n  `${today}: ${extracted.authorization_number || 'NO AUTH#'}`,\n  extracted.service_type || '',\n  extracted.authorized_hours_per_month\n    ? `${extracted.authorized_hours_per_month} HRS/MO`\n    : '',\n  extracted.gross_auth_amount\n    ? `GROSS AUTH AMT: ${extracted.gross_auth_amount}`\n    : '',\n  extracted.notes || ''\n].filter(Boolean).join('. ');\n\n// 9. Build service date\nconst serviceDate = extracted.start_date && extracted.end_date\n  ? `${extracted.start_date} - ${extracted.end_date}`\n  : null;\n\n// 10. Format hours per month\nconst hoursPerMonth = extracted.authorized_hours_per_month && serviceDate\n  ? `${extracted.authorized_hours_per_month} hours/month (${serviceDate})`\n  : extracted.authorized_hours_per_month\n  ? `${extracted.authorized_hours_per_month} hours/month`\n  : null;\n\n// 11. Final output\nreturn [{\n  json: {\n    ...extracted,\n    auth_comment: authComment,\n    service_date: serviceDate,\n    hours_per_month_formatted: hoursPerMonth,\n    file_name: fileName,\n    warnings: warnings,\n    has_warnings: warnings.length > 0,\n    processed_at: today,\n    parse_error: false\n  }\n}];"
+        "jsCode": "let rawResponse = '';\nlet fileName = '';\n\n// Get file name safely\ntry {\n  fileName = $('Extract PDF Attachment').first().json.file_name || 'Unknown File';\n} catch (e) {\n  fileName = 'Unknown File';\n}\n\n// 1. Try Basic LLM Chain (text path)\ntry {\n  const textOutput = $('Claude Parser').first().json.text;\n  if (textOutput) rawResponse = textOutput;\n} catch (e) {}\n\n// 2. Try Anthropic Vision fallback\nif (!rawResponse) {\n  try {\n    rawResponse = $('Anthropic Vision').first().json.content[0].text || '';\n  } catch (e) {}\n}\n\n// 3. Handle no response\nif (!rawResponse) {\n  return [{\n    json: {\n      parse_error: true,\n      error_message: 'No response from extraction',\n      file_name: fileName,\n      student_name: null,\n      guardian_name: null,\n      student_id: null,\n      authorization_number: null,\n      district: null,\n      service_type: null,\n      authorized_hours_per_month: null,\n      start_date: null,\n      end_date: null,\n      case_manager_name: null,\n      subject_areas: null,\n      gross_auth_amount: null,\n      notes: null,\n      warnings: ['CRITICAL: No response — manual review required'],\n      has_warnings: true\n    }\n  }];\n}\n\n// 4. Clean response (VERY IMPORTANT)\nlet cleaned = rawResponse\n  .replace(/```json/g, '')\n  .replace(/```/g, '')\n  .trim();\n\n// 🔥 EXTRA FIX: remove leading \"=\" if present\nif (cleaned.startsWith('=')) {\n  cleaned = cleaned.slice(1);\n}\n\n// 5. Parse JSON safely\nlet extracted;\n\ntry {\n  extracted = JSON.parse(cleaned);\n} catch (e) {\n  return [{\n    json: {\n      parse_error: true,\n      error_message: 'Failed to parse response',\n      raw_response: rawResponse,\n      file_name: fileName,\n      student_name: null,\n      student_id: null,\n      authorization_number: null,\n      district: null,\n      service_type: null,\n      authorized_hours_per_month: null,\n      start_date: null,\n      end_date: null,\n      case_manager_name: null,\n      subject_areas: null,\n      gross_auth_amount: null,\n      notes: null,\n      warnings: ['CRITICAL: Could not parse response — manual review required'],\n      has_warnings: true\n    }\n  }];\n}\n\n// 6. Validate required fields\nconst warnings = [];\nconst requiredFields = [\n  'student_name',\n  'student_id',\n  'authorization_number',\n  'start_date',\n  'end_date',\n  'authorized_hours_per_month',\n];\n\nrequiredFields.forEach(field => {\n  if (!extracted[field]) {\n    warnings.push(`Missing required field: ${field}`);\n  }\n});\n\n// 7. Format date\nconst today = new Date().toLocaleDateString('en-US', {\n  month: '2-digit',\n  day: '2-digit',\n  year: '2-digit'\n});\n\n// 8. Build auth comment\nconst authComment = [\n  `${today}: ${extracted.authorization_number || 'NO AUTH#'}`,\n  extracted.service_type || '',\n  extracted.authorized_hours_per_month\n    ? `${extracted.authorized_hours_per_month} HRS/MO`\n    : '',\n  extracted.gross_auth_amount\n    ? `GROSS AUTH AMT: ${extracted.gross_auth_amount}`\n    : '',\n  extracted.notes || ''\n].filter(Boolean).join('. ');\n\n// 9. Build service date\nconst serviceDate = extracted.start_date && extracted.end_date\n  ? `${extracted.start_date} - ${extracted.end_date}`\n  : null;\n\n// 10. Format hours per month\nconst hoursPerMonth = extracted.authorized_hours_per_month && serviceDate\n  ? `${extracted.authorized_hours_per_month} hours/month (${serviceDate})`\n  : extracted.authorized_hours_per_month\n  ? `${extracted.authorized_hours_per_month} hours/month`\n  : null;\n\n// 11. Final output\nreturn [{\n  json: {\n    ...extracted,\n    auth_comment: authComment,\n    service_date: serviceDate,\n    hours_per_month_formatted: hoursPerMonth,\n    file_name: fileName,\n    warnings: warnings,\n    has_warnings: warnings.length > 0,\n    processed_at: today,\n    parse_error: false\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1360,
-        -192
+        656,
+        224
       ],
-      "id": "71795583-a08d-41d7-a6d7-696c0dad4172",
+      "id": "1c6a6063-2ce9-4f64-90f9-ad2cf264e036",
       "name": "Parse and Validate Result"
     },
     {
@@ -258,10 +200,10 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        1584,
-        -192
+        880,
+        224
       ],
-      "id": "7db1e2de-d7fc-4a3a-a3d7-9219fb18c2f4",
+      "id": "376e7fa4-0f50-4960-99d2-a22841e217c0",
       "name": "Get row(s) in sheet",
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -277,10 +219,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1808,
-        -192
+        1104,
+        224
       ],
-      "id": "d5410eee-24c8-4075-8c79-57cce99bce65",
+      "id": "48ef3169-7565-4b21-9feb-ff47b0898b76",
       "name": "Check if the student exists and gets that row",
       "alwaysOutputData": false
     },
@@ -291,10 +233,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2256,
-        -288
+        1552,
+        128
       ],
-      "id": "22a9f8d5-8f22-45a4-8478-fcff823e8d56",
+      "id": "afa19896-0144-43fb-a586-6ceb55af8758",
       "name": "Build Google Sheet Payload"
     },
     {
@@ -325,10 +267,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        2480,
-        -288
+        1776,
+        128
       ],
-      "id": "1b2c05ae-b58b-4ed9-90bd-d558c4eb53ac",
+      "id": "c620312d-0b9f-4325-98be-3b8bca47f8d9",
       "name": "IF Auth Slot Available?"
     },
     {
@@ -731,10 +673,10 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        2704,
-        -384
+        2000,
+        32
       ],
-      "id": "103a218f-e05b-4f93-a391-a5b9ed21baf5",
+      "id": "50a89cae-8e6d-4a74-854a-6699cce3e996",
       "name": "With Auth Slot",
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -1138,10 +1080,10 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        2704,
-        -192
+        2000,
+        224
       ],
-      "id": "47d6b627-0627-49e8-b1d7-8c35d9d603ac",
+      "id": "e7651860-2954-47fc-8ccb-b30200ccaa6f",
       "name": "With No Auth Slot",
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -1178,10 +1120,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        2928,
-        -384
+        2224,
+        32
       ],
-      "id": "2292c9af-e5de-4a1e-a162-f1b2adbe9540",
+      "id": "758d7cec-2498-4c60-8ca4-49a4b2994557",
       "name": "Check for Warnings"
     },
     {
@@ -1212,10 +1154,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        2928,
-        -192
+        2224,
+        224
       ],
-      "id": "aa000d96-9507-4b9e-9eaf-9da3dcc5e941",
+      "id": "a7b912d3-fedf-4f3c-a537-3b03fed98ca1",
       "name": "Check for warnings"
     },
     {
@@ -1246,10 +1188,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        2032,
-        -192
+        1328,
+        224
       ],
-      "id": "c0e61ccd-e61b-42b1-9e0b-7bd132329082",
+      "id": "8cb68b01-26bd-4623-b99b-841b6c1f69f9",
       "name": "Check if Old or New Student"
     },
     {
@@ -1259,10 +1201,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2288,
-        64
+        1552,
+        416
       ],
-      "id": "c4ed5d5d-2faa-4133-a0f2-1db7a5a3d50e",
+      "id": "61bd8647-3a64-41ed-a6f0-ad92cbc0687d",
       "name": "Payload for New Student"
     },
     {
@@ -1652,10 +1594,10 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        2512,
-        64
+        1776,
+        416
       ],
-      "id": "9d88b6f0-12d1-43e4-be05-3e1ddc8b292f",
+      "id": "743fa62a-6281-4fd7-b67d-52a6b3878544",
       "name": "Add New Student",
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -1692,10 +1634,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        2736,
-        64
+        2000,
+        416
       ],
-      "id": "c4f4e516-f7cf-4dcc-85de-525242e455f3",
+      "id": "77cb9ea4-a317-48c7-94f4-bb4acb230795",
       "name": "Check for warnings1"
     },
     {
@@ -1780,10 +1722,10 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        2960,
-        64
+        2224,
+        416
       ],
-      "id": "3ec9dc88-7395-49f2-91db-3b2f2c1782b4",
+      "id": "bde0a65e-1f13-4d4b-8c9f-6a64dbc97591",
       "name": "Log Warnings",
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -1877,10 +1819,10 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        3152,
-        -192
+        2448,
+        224
       ],
-      "id": "87244fe8-1d90-4587-9720-cfa8fbdbb92e",
+      "id": "75f25946-5dac-4207-9458-9ca73cc790e3",
       "name": "Log Warnings1",
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -1974,10 +1916,10 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        3152,
-        -384
+        2448,
+        32
       ],
-      "id": "cda3a882-9ff3-4050-98d9-d67105cac029",
+      "id": "42defb19-3eee-4762-87f2-3977a1d0b0d2",
       "name": "Log Warnings2",
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -1985,32 +1927,106 @@
           "name": "Google Sheets account 2"
         }
       }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -1488,
+        224
+      ],
+      "id": "cefff069-6f42-4561-8815-c65dc2f35c80",
+      "name": "Download Attachment",
+      "webhookId": "68c63a11-cb30-49c3-ab80-1a9df5a506cf",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "XJ0ofhUUjUqCxhvt",
+          "name": "TutorMe"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $('Gmail - New Auth Email').item.json.id }}",
+        "simple": false,
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -368,
+        368
+      ],
+      "id": "ddc4a99e-8b93-4b64-b4e2-173ba997b75b",
+      "name": "Download Attachment for Claude Vision",
+      "webhookId": "68c63a11-cb30-49c3-ab80-1a9df5a506cf",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "XJ0ofhUUjUqCxhvt",
+          "name": "TutorMe"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5ce63fe7-d9de-4f00-8dde-c4b099bbda19",
+              "name": "=data",
+              "value": "={{ $('Download Attachment').item.binary.attachment_0 }}",
+              "type": "binary"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1264,
+        224
+      ],
+      "id": "527654a7-2502-42fa-9519-a1e24d48f205",
+      "name": "prepare payload"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5ce63fe7-d9de-4f00-8dde-c4b099bbda19",
+              "name": "=data",
+              "value": "={{ $('Download Attachment').item.binary.attachment_0 }}",
+              "type": "binary"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -144,
+        368
+      ],
+      "id": "32bca511-95cc-41d6-b0fd-f6fff4278bba",
+      "name": "prepare payload for vision"
     }
   ],
   "pinData": {},
   "connections": {
-    "Auth Letter detector": {
-      "main": [
-        [
-          {
-            "node": "Download file",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Download file": {
-      "main": [
-        [
-          {
-            "node": "Extract Text from PDF",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "If": {
       "main": [
         [
@@ -2022,7 +2038,7 @@
         ],
         [
           {
-            "node": "Redownload for Claude Vision",
+            "node": "Download Attachment for Claude Vision",
             "type": "main",
             "index": 0
           }
@@ -2067,17 +2083,6 @@
         [
           {
             "node": "Anthropic Vision",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Redownload for Claude Vision": {
-      "main": [
-        [
-          {
-            "node": "Prepare PDF for Vision",
             "type": "main",
             "index": 0
           }
@@ -2262,6 +2267,61 @@
           }
         ]
       ]
+    },
+    "Gmail - New Auth Email": {
+      "main": [
+        [
+          {
+            "node": "Download Attachment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Attachment": {
+      "main": [
+        [
+          {
+            "node": "prepare payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Attachment for Claude Vision": {
+      "main": [
+        [
+          {
+            "node": "prepare payload for vision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "prepare payload": {
+      "main": [
+        [
+          {
+            "node": "Extract Text from PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "prepare payload for vision": {
+      "main": [
+        [
+          {
+            "node": "Prepare PDF for Vision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -2269,11 +2329,11 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "9b1d0a68-0066-4daa-9285-8f87f7a4cc1a",
+  "versionId": "ab20a366-0d1d-4d5e-a598-5c0f6b217ba7",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "a992e1d3f5a5db45fc0d1a6b09a207dab31c2aeaa2c8b7725ffa8d181f2740c6"
   },
-  "id": "Umq8mo5d2XMznW95",
+  "id": "5glQBPCkwTrkuNXe",
   "tags": []
 }
